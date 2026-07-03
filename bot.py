@@ -8,6 +8,8 @@ from aiogram import F
 from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
+from aiogram.fsm.state import State, StatesGroup
+from aiogram.fsm.context import FSMContext
 
 load_dotenv()
 TOKEN = os.getenv("BOT_TOKEN")
@@ -73,6 +75,50 @@ async def mul(callback: CallbackQuery):
 async def div(callback: CallbackQuery):
     await callback.message.answer("Вы выбрали деление!")
     await callback.answer()
+class CalcStates(StatesGroup):
+    first_number = State()
+    operator = State()
+    second_number = State()
+@dp.message(Command("dialog"))
+async def dialog_start(message: Message, state: FSMContext):
+    await message.answer("Введи первое число:")
+    await state.set_state(CalcStates.first_number)
+@dp.message(CalcStates.first_number)
+async def get_first_number(message: Message, state: FSMContext):
+    try:
+        num = float(message.text)
+        await state.update_data(first_number=num)
+        await message.answer("Введи операцию (+, -, *, /):")
+        await state.set_state(CalcStates.operator)
+    except ValueError:
+        await message.answer("Это не число! Попробуй ещё раз:")
+@dp.message(CalcStates.operator)
+async def get_operator(message: Message, state: FSMContext):
+    znak = message.text
+    await state.update_data(operator=znak)
+    await message.answer("Введи второе число:")
+    await state.set_state(CalcStates.second_number)
+@dp.message(CalcStates.second_number)
+async def get_second_number(message: Message, state: FSMContext):
+    try:
+        num = float(message.text)
+        await state.update_data(second_number=num)
+        data = await state.get_data()  # достаём все сохранённые данные
+        num1 = data["first_number"]
+        op = data["operator"]
+        num2 = data["second_number"]
+        if op == "+":
+            result = num1 + num2
+        elif op == "-":
+            result = num1 - num2
+        elif op == "*":
+            result = num1 * num2
+        elif op == "/":
+            result = num1 / num2
+        await message.answer(f"Результат: {result}")
+        await state.clear()  # сбрасываем состояние, диалог завершён
+    except ValueError:
+        await message.answer("Это не число! Попробуй ещё раз:")
 async def main():
     await dp.start_polling(bot)
 if __name__ == "__main__":
